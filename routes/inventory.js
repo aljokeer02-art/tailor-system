@@ -3,73 +3,85 @@ const router = express.Router();
 const db = require('../db');
 
 // ---------- الأقمشة ----------
-router.get('/fabrics', (req, res) => {
-  res.json(db.prepare(`SELECT * FROM fabrics ORDER BY id DESC`).all());
+router.get('/fabrics', async (req, res) => {
+  try { res.json(await db.query(`SELECT * FROM fabrics ORDER BY id DESC`)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.post('/fabrics', (req, res) => {
-  const { name, color, unit, stock_qty, cost_price, sell_price, min_stock_alert } = req.body;
-  if (!name) return res.status(400).json({ error: 'اسم القماش مطلوب' });
-  const info = db.prepare(`
-    INSERT INTO fabrics (name, color, unit, stock_qty, cost_price, sell_price, min_stock_alert)
-    VALUES (?,?,?,?,?,?,?)
-  `).run(name, color || null, unit || 'meter', stock_qty || 0, cost_price || 0, sell_price || 0, min_stock_alert ?? 5);
-  res.status(201).json(db.prepare(`SELECT * FROM fabrics WHERE id=?`).get(info.lastInsertRowid));
+router.post('/fabrics', async (req, res) => {
+  try {
+    const { name, color, unit, stock_qty, cost_price, sell_price, min_stock_alert } = req.body;
+    if (!name) return res.status(400).json({ error: 'اسم القماش مطلوب' });
+    const row = await db.one(`
+      INSERT INTO fabrics (name, color, unit, stock_qty, cost_price, sell_price, min_stock_alert)
+      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *
+    `, [name, color || null, unit || 'meter', stock_qty || 0, cost_price || 0, sell_price || 0, min_stock_alert ?? 5]);
+    res.status(201).json(row);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.put('/fabrics/:id', (req, res) => {
-  const { name, color, unit, stock_qty, cost_price, sell_price, min_stock_alert } = req.body;
-  db.prepare(`
-    UPDATE fabrics SET name=?, color=?, unit=?, stock_qty=?, cost_price=?, sell_price=?, min_stock_alert=?
-    WHERE id=?
-  `).run(name, color, unit, stock_qty, cost_price, sell_price, min_stock_alert, req.params.id);
-  res.json(db.prepare(`SELECT * FROM fabrics WHERE id=?`).get(req.params.id));
+router.put('/fabrics/:id', async (req, res) => {
+  try {
+    const { name, color, unit, stock_qty, cost_price, sell_price, min_stock_alert } = req.body;
+    await db.query(`
+      UPDATE fabrics SET name=$1, color=$2, unit=$3, stock_qty=$4, cost_price=$5, sell_price=$6, min_stock_alert=$7
+      WHERE id=$8
+    `, [name, color, unit, stock_qty, cost_price, sell_price, min_stock_alert, req.params.id]);
+    res.json(await db.one(`SELECT * FROM fabrics WHERE id=$1`, [req.params.id]));
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// تزويد المخزون (وارد جديد من المورد)
-router.post('/fabrics/:id/restock', (req, res) => {
-  const { qty } = req.body;
-  if (!qty || qty <= 0) return res.status(400).json({ error: 'الكمية غير صالحة' });
-  db.prepare(`UPDATE fabrics SET stock_qty = stock_qty + ? WHERE id=?`).run(qty, req.params.id);
-  res.json(db.prepare(`SELECT * FROM fabrics WHERE id=?`).get(req.params.id));
+router.post('/fabrics/:id/restock', async (req, res) => {
+  try {
+    const { qty } = req.body;
+    if (!qty || qty <= 0) return res.status(400).json({ error: 'الكمية غير صالحة' });
+    await db.query(`UPDATE fabrics SET stock_qty = stock_qty + $1 WHERE id=$2`, [qty, req.params.id]);
+    res.json(await db.one(`SELECT * FROM fabrics WHERE id=$1`, [req.params.id]));
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.delete('/fabrics/:id', (req, res) => {
-  db.prepare(`DELETE FROM fabrics WHERE id=?`).run(req.params.id);
-  res.json({ ok: true });
+router.delete('/fabrics/:id', async (req, res) => {
+  try { await db.query(`DELETE FROM fabrics WHERE id=$1`, [req.params.id]); res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ---------- المستلزمات (خيوط، أزرار، حشوات، سحابات) ----------
-router.get('/supplies', (req, res) => {
-  res.json(db.prepare(`SELECT * FROM supplies ORDER BY id DESC`).all());
+// ---------- المستلزمات ----------
+router.get('/supplies', async (req, res) => {
+  try { res.json(await db.query(`SELECT * FROM supplies ORDER BY id DESC`)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.post('/supplies', (req, res) => {
-  const { name, type, unit, stock_qty, min_stock_alert } = req.body;
-  if (!name || !type) return res.status(400).json({ error: 'الاسم والنوع مطلوبان' });
-  const info = db.prepare(`
-    INSERT INTO supplies (name, type, unit, stock_qty, min_stock_alert) VALUES (?,?,?,?,?)
-  `).run(name, type, unit || 'piece', stock_qty || 0, min_stock_alert ?? 10);
-  res.status(201).json(db.prepare(`SELECT * FROM supplies WHERE id=?`).get(info.lastInsertRowid));
+router.post('/supplies', async (req, res) => {
+  try {
+    const { name, type, unit, stock_qty, min_stock_alert } = req.body;
+    if (!name || !type) return res.status(400).json({ error: 'الاسم والنوع مطلوبان' });
+    const row = await db.one(`
+      INSERT INTO supplies (name, type, unit, stock_qty, min_stock_alert) VALUES ($1,$2,$3,$4,$5) RETURNING *
+    `, [name, type, unit || 'piece', stock_qty || 0, min_stock_alert ?? 10]);
+    res.status(201).json(row);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.post('/supplies/:id/restock', (req, res) => {
-  const { qty } = req.body;
-  if (!qty || qty <= 0) return res.status(400).json({ error: 'الكمية غير صالحة' });
-  db.prepare(`UPDATE supplies SET stock_qty = stock_qty + ? WHERE id=?`).run(qty, req.params.id);
-  res.json(db.prepare(`SELECT * FROM supplies WHERE id=?`).get(req.params.id));
+router.post('/supplies/:id/restock', async (req, res) => {
+  try {
+    const { qty } = req.body;
+    if (!qty || qty <= 0) return res.status(400).json({ error: 'الكمية غير صالحة' });
+    await db.query(`UPDATE supplies SET stock_qty = stock_qty + $1 WHERE id=$2`, [qty, req.params.id]);
+    res.json(await db.one(`SELECT * FROM supplies WHERE id=$1`, [req.params.id]));
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.delete('/supplies/:id', (req, res) => {
-  db.prepare(`DELETE FROM supplies WHERE id=?`).run(req.params.id);
-  res.json({ ok: true });
+router.delete('/supplies/:id', async (req, res) => {
+  try { await db.query(`DELETE FROM supplies WHERE id=$1`, [req.params.id]); res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// تنبيهات المخزون المنخفض
-router.get('/alerts', (req, res) => {
-  const fabrics = db.prepare(`SELECT * FROM fabrics WHERE stock_qty <= min_stock_alert`).all();
-  const supplies = db.prepare(`SELECT * FROM supplies WHERE stock_qty <= min_stock_alert`).all();
-  res.json({ fabrics, supplies });
+router.get('/alerts', async (req, res) => {
+  try {
+    const fabrics = await db.query(`SELECT * FROM fabrics WHERE stock_qty <= min_stock_alert`);
+    const supplies = await db.query(`SELECT * FROM supplies WHERE stock_qty <= min_stock_alert`);
+    res.json({ fabrics, supplies });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 module.exports = router;

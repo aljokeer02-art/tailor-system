@@ -1,20 +1,20 @@
+# ملاحظة: بعد الانتقال لقاعدة بيانات Supabase الخارجية، لم تعد هناك حاجة لقرص دائم
+# (Persistent Disk) — أصبحت خطة Render المجانية (Free) كافية لأن البيانات لا تُخزَّن
+# على القرص المحلي للسيرفر بعد الآن. هذا الملف اختياري إن رغبت لاحقاً باستخدام
+# Render بدلاً من Vercel أو بالإضافة إليه.
 services:
   - type: web
     name: tailor-system
     runtime: node
-    plan: starter          # يلزم خطة مدفوعة (وليست free) لإرفاق قرص دائم يحفظ بياناتك
+    plan: free
     buildCommand: npm install
     startCommand: npm start
     envVars:
       - key: ADMIN_EMAIL
         value: alsaadamr94@gmail.com
       - key: ADMIN_DEFAULT_PASSWORD
-        sync: false        # عيّنها بنفسك من لوحة Render بدل تركها في الكود
+        sync: false
       - key: JWT_SECRET
         generateValue: true
-      - key: DB_PATH
-        value: /var/data/tailor.db
-    disk:
-      name: tailor-data
-      mountPath: /var/data
-      sizeGB: 1
+      - key: DATABASE_URL
+        sync: false   # الصق رابط اتصال Supabase Postgres هنا من لوحة Render
